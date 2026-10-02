@@ -1,0 +1,44 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Snake</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#eee;font-family:Arial,Helvetica,sans-serif}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+#top{position:absolute;top:12px;left:34px;font-size:24px;font-weight:600;color:#c9c9c9;z-index:2;pointer-events:none}
+#score{position:absolute;right:30px;top:16px;color:#aaa;font-size:14px;letter-spacing:.5px;pointer-events:none}
+#mode{position:absolute;left:34px;top:49px;color:#777;font-size:12px;letter-spacing:1px;pointer-events:none}
+#help{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);color:#777;font-size:12px;opacity:.0;transition:opacity .35s;white-space:nowrap;pointer-events:none}
+body:hover #help{opacity:1}
+#toast{position:absolute;left:50%;top:24%;transform:translate(-50%,-8px);font-size:13px;color:#ff8a45;letter-spacing:1px;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+<div id="top">Snake</div><div id="mode">1 CLASSIC · 2 NO WALLS</div><div id="score">SCORE&nbsp; <span id="n">0</span></div><div id="toast"></div><canvas id="c"></canvas><div id="help">Swipe / Arrow keys / WASD · Space pause · 1 Classic · 2 No Walls · Enter restart</div>
+<script>
+(()=>{const c=document.getElementById('c'),x=c.getContext('2d'),scoreEl=document.getElementById('n'),modeEl=document.getElementById('mode'),toast=document.getElementById('toast');
+let w,h,cell=34,cols,rows,snake,food,dir,queued,score=0,alive=true,paused=false,last=0,mode=1,tickNo=0,particles=[],toastTimer;
+function resize(){let d=devicePixelRatio||1;w=innerWidth;h=innerHeight;c.width=w*d;c.height=h*d;x.setTransform(d,0,0,d,0,0);cols=Math.max(8,Math.floor(w/cell));rows=Math.max(8,Math.floor(h/cell));if(snake)draw()}addEventListener('resize',resize);
+function announce(t){toast.textContent=t;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),1300)}
+function reset(){snake=[{x:Math.floor(cols/2)-3,y:Math.floor(rows/2)},{x:Math.floor(cols/2)-2,y:Math.floor(rows/2)},{x:Math.floor(cols/2)-1,y:Math.floor(rows/2)},{x:Math.floor(cols/2),y:Math.floor(rows/2)}];dir={x:1,y:0};queued={...dir};score=0;tickNo=0;particles=[];alive=true;paused=false;scoreEl.textContent=0;spawn();draw()}
+function spawn(){do{food={x:Math.floor(Math.random()*cols),y:Math.floor(Math.random()*rows),magnetic:Math.random()<.22,age:0}}while(snake.some(p=>p.x===food.x&&p.y===food.y));}
+function burst(px,py){for(let i=0;i<12;i++){let a=Math.PI*2*i/12;particles.push({x:px,y:py,vx:Math.cos(a)*1.4,vy:Math.sin(a)*1.4,life:1})}}
+function draw(t=performance.now()){x.clearRect(0,0,w,h);x.fillStyle='#1c1c1c';for(let yy=cell/2;yy<h;yy+=cell)for(let xx=cell/2;xx<w;xx+=cell){x.beginPath();x.arc(xx,yy,2.2,0,Math.PI*2);x.fill()}
+const r=cell*.34, now=t/1000;
+if(food){let fx=(food.x+.5)*cell,fy=(food.y+.5)*cell;if(food.magnetic){x.save();x.globalAlpha=.14+.08*Math.sin(now*5);x.strokeStyle='#ff7a32';x.lineWidth=1.5;x.beginPath();x.arc(fx,fy,r+7+Math.sin(now*4)*3,0,Math.PI*2);x.stroke();x.restore()}
+x.save();x.globalAlpha=.8+.2*Math.sin(now*5);x.fillStyle=food.magnetic?'#ff9a43':'#d65b1e';x.shadowColor='#ff6b22';x.shadowBlur=food.magnetic?18:0;x.beginPath();x.arc(fx,fy,r*(food.magnetic?1.05:1),0,Math.PI*2);x.fill();x.restore()}
+snake.forEach((p,i)=>{let cx=(p.x+.5)*cell,cy=(p.y+.5)*cell;x.save();x.globalAlpha=.25+i/snake.length*.75;x.fillStyle=i===snake.length-1?'#ff8a36':'#d65b1e';x.beginPath();x.arc(cx,cy,i===snake.length-1?r+1:r,0,Math.PI*2);x.fill();x.restore()});
+particles=particles.filter(p=>p.life>0);particles.forEach(p=>{x.globalAlpha=p.life;x.fillStyle='#ff8a36';x.beginPath();x.arc(p.x,p.y,2.2,0,7);x.fill();p.x+=p.vx;p.y+=p.vy;p.life-=.045});x.globalAlpha=1;
+if(!alive||paused){x.fillStyle='#aaa';x.textAlign='center';x.font='600 20px Arial';x.fillText(!alive?'GAME OVER':'PAUSED',w/2,h/2+cell*2);x.font='14px Arial';x.fillText(!alive?'Press Enter to restart':'Press Space to resume',w/2,h/2+cell*3)}
+}
+function tick(){if(!alive||paused)return;tickNo++;dir=queued;let head={x:snake.at(-1).x+dir.x,y:snake.at(-1).y+dir.y};
+if(mode===2){head.x=(head.x+cols)%cols;head.y=(head.y+rows)%rows}
+let eat=head.x===food.x&&head.y===food.y,body=eat?snake:snake.slice(1);
+if((mode===1&&(head.x<0||head.y<0||head.x>=cols||head.y>=rows))||body.some(p=>p.x===head.x&&p.y===head.y)){alive=false;announce('GAME OVER');draw();return}
+snake.push(head);if(eat){score++;scoreEl.textContent=score;burst((food.x+.5)*cell,(food.y+.5)*cell);spawn();if(food.magnetic)announce('MAGNETIC FOOD');}else snake.shift();
+// Special food slowly drifts one grid step toward the snake, giving it a magnetic feel.
+if(food.magnetic&&tickNo%3===0){let h=snake.at(-1),dx=Math.sign(h.x-food.x),dy=Math.sign(h.y-food.y);let candidates=[{x:food.x+dx,y:food.y},{x:food.x,y:food.y+dy}].filter(p=>p.x>=0&&p.x<cols&&p.y>=0&&p.y<rows&&!snake.some(s=>s.x===p.x&&s.y===p.y));if(candidates.length)food={...food,...candidates[Math.floor(Math.random()*candidates.length)]}}
+draw()}
+function loop(t){if(!last)last=t;if(t-last>=125){tick();last=t}draw(t);requestAnimationFrame(loop)}
+function setMode(m){if(mode===m)return;mode=m;modeEl.textContent=m===1?'1 CLASSIC · 2 NO WALLS':'1 CLASSIC · 2 NO WALLS';reset();announce(m===1?'CLASSIC MODE':'NO WALLS MODE')}
+addEventListener('keydown',e=>{let m={ArrowUp:[0,-1],w:[0,-1],W:[0,-1],ArrowDown:[0,1],s:[0,1],S:[0,1],ArrowLeft:[-1,0],a:[-1,0],A:[-1,0],ArrowRight:[1,0],d:[1,0],D:[1,0]};if(m[e.key]){e.preventDefault();let[a,b]=m[e.key];if(a!==-dir.x||b!==-dir.y)queued={x:a,y:b}}if(e.code==='Space'){e.preventDefault();paused=!paused;draw()}if(e.key==='Enter')reset();if(e.key==='1')setMode(1);if(e.key==='2')setMode(2)});
+let touch;c.addEventListener('touchstart',e=>{touch=[e.touches[0].clientX,e.touches[0].clientY]},{passive:true});c.addEventListener('touchend',e=>{if(!touch)return;let dx=e.changedTouches[0].clientX-touch[0],dy=e.changedTouches[0].clientY-touch[1];if(Math.max(Math.abs(dx),Math.abs(dy))>15){let a=Math.abs(dx)>Math.abs(dy)?Math.sign(dx):0,b=Math.abs(dy)>=Math.abs(dx)?Math.sign(dy):0;if(a!==-dir.x||b!==-dir.y)queued={x:a,y:b}}touch=null},{passive:true});
+resize();reset();requestAnimationFrame(loop);
+})();
+</script></html>
